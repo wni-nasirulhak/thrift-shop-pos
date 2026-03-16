@@ -4,3 +4,4 @@ google-auth
 pandas
 qrcode[pil]
 Pillow
+plotly
