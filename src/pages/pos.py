@@ -1,127 +1,123 @@
 """
-pages/pos.py — Point of Sale: scan barcode, apply discount, record sale.
+pages/pos.py — Point of Sale integrated with React UI.
 """
 
 import streamlit as st
 import time
 from datetime import datetime
-from src.config import PAYMENT_OPTIONS
-from src.database.inventory import find_item_by_barcode
-from src.database.measurements import load_measurements
+from src.database.inventory import load_all_inventory
+from src.database.customers import load_all_customers
 from src.database.sales import record_sale
-from src.services.images import decode_base64_to_bytes
-from src.components.ui_helpers import (
-    render_section, render_divider,
-    render_item_card, render_price_box, render_receipt,
-)
-
+from src.components.react_pos import render_react_pos
+from src.components.ui_helpers import render_receipt
 
 def render(sheet):
-    render_section("🛒 สแกนสินค้าเพื่อขาย")
+    st.markdown('<div class="pos-app-wrapper">', unsafe_allow_html=True)
+    
+    with st.spinner("⏳ กำลังโหลดข้อมูลร้านค้า..."):
+        # Load all data for React
+        inv_df = load_all_inventory(sheet)
+        inventory_records = inv_df.to_dict('records') if not inv_df.empty else []
+        customers_records = load_all_customers(sheet)
 
-    barcode_input = st.text_input(
-        "รหัสสินค้า",
-        placeholder="พิมพ์หรือสแกนบาร์โค้ด เช่น UNIQLO-SH-001",
-        help="กรอกรหัสแล้วกด Enter",
-        label_visibility="collapsed",
+    # Render React POS component
+    payload = render_react_pos(
+        inventory=inventory_records,
+        customers=customers_records,
+        key="pos_main"
     )
 
-    if not barcode_input:
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Process Checkout Payload
+    if payload and payload.get("cart"):
+        process_checkout(sheet, payload)
+
+def process_checkout(sheet, payload: dict):
+    # --- 1. Prevent Infinite Loop ---
+    checkout_id = payload.get("checkoutId")
+    if not checkout_id:
         return
+    
+    if "processed_checkouts" not in st.session_state:
+        st.session_state.processed_checkouts = set()
+        
+    if checkout_id in st.session_state.processed_checkouts:
+        return # Skip processing if already done
+        
+    st.session_state.processed_checkouts.add(checkout_id)
 
-    with st.spinner("🔍 กำลังค้นหา..."):
-        item = find_item_by_barcode(sheet, barcode_input)
+    # --- 2. Extract Payload ---
+    cart = payload.get("cart", [])
+    customer = payload.get("customer")
+    new_customer_name = payload.get("newCustomerName", "").strip()
+    customer_address = payload.get("customerAddress", "").strip()
+    customer_phone_search = payload.get("customerPhone", "").strip()
+    
+    discount_type = payload.get("discountType", "none")
+    discount_amount = float(payload.get("discountAmount", 0))
+    cart_final_price = float(payload.get("finalPrice", 0))
+    payment_method = payload.get("paymentMethod", "Cash")
+    points_used = int(payload.get("pointsUsed", 0))
+    
+    # Resolve customer phone: use selected customer or the typed phone
+    customer_phone = str(customer["Phone_Number"]) if customer else customer_phone_search
 
-    if not item:
-        st.error("❌ ไม่พบสินค้ารหัสนี้ในระบบ")
-        return
-
-    if item.get("Status") == "Sold":
-        st.error("❌ สินค้านี้ขายไปแล้ว!")
-        return
-
-    st.success("✅ พบสินค้า!")
-
-    # โหลดขนาด (ถ้ามี)
-    item["measurements"] = load_measurements(sheet, item.get("Category_ID", ""), barcode_input)
-
-    price    = float(item.get("Price", 0) or 0)
-    cost_val = float(item.get("Cost",  0) or 0)
-
-    # ===== รูปสินค้า =====
-    photo_bytes = decode_base64_to_bytes(item.get("Photo", ""))
-    if photo_bytes:
-        st.markdown("**📷 รูปสินค้า**")
-        col_p, _, _ = st.columns([1, 1, 2])
-        with col_p:
-            st.image(photo_bytes, use_container_width=True)
-
-    # ===== ข้อมูลสินค้า + ราคา =====
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        render_item_card(item)
-        meas = item.get("measurements", {})
-        meas_items = [(k, v) for k, v in meas.items() if k not in ("Barcode_ID", "Updated_Date") and v]
-        if meas_items:
-            with st.expander("📏 ขนาดจริง"):
-                for k, v in meas_items:
-                    st.text(f"• {k}: {v}")
-    with col2:
-        render_price_box(price, cost_val)
-
-    render_divider()
-
-    # ===== ส่วนลด =====
-    st.markdown("**🏷️ ส่วนลด**")
-    col_d1, col_d2 = st.columns(2)
-
-    with col_d1:
-        discount_type = st.radio(
-            "ประเภทส่วนลด",
-            ["ไม่มี", "เปอร์เซ็นต์ (%)", "บาท (฿)"],
-            label_visibility="collapsed",
-        )
-    with col_d2:
-        if discount_type == "เปอร์เซ็นต์ (%)":
-            disc_pct    = st.number_input("ส่วนลด (%)", 0.0, 100.0, step=1.0)
-            disc_amount = price * disc_pct / 100
-            disc_value  = disc_pct
-        elif discount_type == "บาท (฿)":
-            disc_amount = st.number_input("ส่วนลด (฿)", 0.0, float(price), step=1.0)
-            disc_value  = 0.0
-        else:
-            disc_amount = 0.0
-            disc_value  = 0.0
-
-    final_price = price - disc_amount
-
-    if disc_amount > 0:
-        st.markdown(
-            f'<div class="discount-badge">🏷️ ส่วนลด -฿{disc_amount:,.2f} → ราคาสุดท้าย '
-            f'<strong>฿{final_price:,.2f}</strong></div>',
-            unsafe_allow_html=True,
-        )
-
-    payment = st.selectbox("💳 วิธีชำระเงิน", PAYMENT_OPTIONS)
-
-    # ===== Confirm =====
-    if st.button("✅ ยืนยันการขาย", use_container_width=True, type="primary"):
-        with st.spinner("⏳ กำลังบันทึก..."):
+    # --- 3. Process Logic ---
+    with st.spinner("⏳ กำลังบันทึกการขาย..."):
+        # Auto-register new customer if provided
+        from src.database.customers import register_customer
+        if not customer and customer_phone and new_customer_name:
+            register_customer(sheet, customer_phone, new_customer_name)
+            
+        success_count = 0
+        total_original = sum(float(c.get("Price", 0)) for c in cart)
+        
+        for idx, item in enumerate(cart):
+            is_first = (idx == 0)
+            item_price = float(item.get("Price", 0))
+            
+            # สัดส่วนของสินค้านี้คิดเป็นกี่ % ของราคารวม
+            ratio = item_price / total_original if total_original > 0 else 0
+            
+            i_final_price = cart_final_price * ratio
+            i_discount_val = (item_price - i_final_price)
+            i_points_used = points_used if is_first else 0 
+            
             ok = record_sale(
-                sheet, barcode_input, price,
-                discount_type, disc_value, final_price,
-                payment.split(" ", 1)[-1],  # strip emoji
+                sheet=sheet,
+                barcode_id=item["Barcode_ID"],
+                original_price=item_price,
+                discount_type=discount_type if is_first else "รวมกับรายการอื่น",
+                discount_value=i_discount_val,
+                final_price=i_final_price,
+                payment_method=payment_method,
+                customer_phone=customer_phone,
+                points_used=i_points_used,
             )
-
-        if ok:
-            st.balloons()
+            
+            # If an address is provided, log it into Shipping
+            if ok and customer_address:
+                from src.database.shipping import record_shipping
+                record_shipping(sheet, item["Barcode_ID"], customer_address, tracking_no="รอดำเนินการ", status="Reserved")
+                
+            if ok:
+                success_count += 1
+                
+        if success_count == len(cart):
+            st.toast("✅ บันทึกการขายสำเร็จ!", icon="🛒")
+            
+            item_names = ", ".join([c["Item_Name"] for c in cart])
             render_receipt(
-                item_name=item.get("Item_Name", ""),
-                price=price,
-                discount_amount=disc_amount,
-                final_price=final_price,
-                payment=payment,
-                timestamp=datetime.now().strftime("%d/%m/%Y %H:%M"),
+                item_name=item_names[:50] + ("..." if len(item_names) > 50 else ""),
+                price=total_original,
+                discount_amount=discount_amount + points_used,
+                final_price=cart_final_price,
+                payment=payment_method,
+                timestamp=datetime.now().strftime("%d/%m/%Y %H:%M")
             )
             time.sleep(3)
+            # Important: Clear the payload or reset to avoid stale data
             st.rerun()
+        else:
+            st.error("❌ บันทึกการขายบางรายการไม่สำเร็จ")

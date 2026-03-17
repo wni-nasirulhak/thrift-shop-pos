@@ -13,6 +13,8 @@ SHEET_INVENTORY        = "Inventory"
 SHEET_CATEGORIES       = "Categories"
 SHEET_BRANDS           = "Brands"
 SHEET_SALES            = "Sales"
+SHEET_CUSTOMERS        = "Customers"
+SHEET_SHIPPING         = "Shipping"
 SHEET_MEASUREMENTS     = {
     "CAT-SH": "Measurements_Shirts",
     "CAT-PA": "Measurements_Pants",

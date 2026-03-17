@@ -15,6 +15,8 @@ import src.pages.inventory_entry as page_inventory
 import src.pages.pos             as page_pos
 import src.pages.search          as page_search
 import src.pages.edit_product    as page_edit
+import src.pages.shipping        as page_shipping
+import src.pages.batch_tools     as page_batch
 
 # ===== Page config (must be first Streamlit call) =====
 st.set_page_config(
@@ -42,8 +44,9 @@ MENU_ITEMS = [
     "🏠 Dashboard",
     "📦 รับของเข้าสต็อก",
     "🛒 จุดขายสินค้า",
-    "🔍 ค้นหาสินค้า",
+    "📋 รายการสินค้าทั้งหมด",
     "✏️ แก้ไขสินค้า",
+    "🚚 จัดส่งพัสดุ",
 ]
 
 # Sidebar (desktop)
@@ -84,5 +87,11 @@ elif menu == "🛒 จุดขายสินค้า":
 elif menu == "🔍 ค้นหาสินค้า":
     page_search.render(sheet)
 
+elif menu == "📋 รายการสินค้าทั้งหมด":
+    page_batch.render(sheet)
+
 elif menu == "✏️ แก้ไขสินค้า":
     page_edit.render(sheet)
+
+elif menu == "🚚 จัดส่งพัสดุ":
+    page_shipping.render(sheet)

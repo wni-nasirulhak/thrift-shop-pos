@@ -8,6 +8,7 @@ from src.database.inventory import load_all_inventory
 from src.components.ui_helpers import (
     render_section, render_metric_grid, render_divider, render_empty_state
 )
+from datetime import datetime
 
 
 def render(sheet):
@@ -47,6 +48,40 @@ def render(sheet):
         render_empty_state("📭", "ไม่มีสินค้าคงเหลือในขณะนี้")
         return
 
-    show_cols = ["Barcode_ID", "Item_Name", "Brand", "Category_Name", "Size_Label", "Price"]
+    # --- Aging stock highlights ---
+    now = datetime.now()
+    def format_item_name(row):
+        name = str(row.get("Item_Name", ""))
+        created_at = row.get("Created_At", "")
+        if created_at:
+            try:
+                dt = datetime.strptime(str(created_at), "%Y-%m-%d %H:%M:%S")
+                days = (now - dt).days
+                if days >= 90:
+                    return f"🚨 {name} (ค้างสต็อก {days} วัน)"
+                elif days >= 30:
+                    return f"⚠️ {name} (ค้างสต็อก {days} วัน)"
+            except Exception:
+                pass
+        return name
+
+    avail_df["Item_Name"] = avail_df.apply(format_item_name, axis=1)
+
+    if "Photo" in avail_df.columns:
+        avail_df["Image_Prev"] = avail_df["Photo"].apply(
+            lambda x: f"data:image/jpeg;base64,{x}" if str(x).strip() else None
+        )
+        show_cols = ["Image_Prev", "Barcode_ID", "Item_Name", "Brand", "Category_Name", "Size_Label", "Price"]
+    else:
+        show_cols = ["Barcode_ID", "Item_Name", "Brand", "Category_Name", "Size_Label", "Price"]
+
     disp_cols = [c for c in show_cols if c in avail_df.columns]
-    st.dataframe(avail_df[disp_cols], use_container_width=True, hide_index=True)
+    
+    st.dataframe(
+        avail_df[disp_cols], 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "Image_Prev": st.column_config.ImageColumn("รูปภาพ"),
+        }
+    )

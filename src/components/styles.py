@@ -235,13 +235,21 @@ GLOBAL_CSS = """
 
     /* ===== Sidebar ===== */
     section[data-testid="stSidebar"] { 
-        background: #0f172a; 
-        border-right: 1px solid #1e293b;
+        background: #312e81;   /* indigo-900 — lighter purple instead of near-black */
+        border-right: 1px solid #3730a3;
     }
     section[data-testid="stSidebar"] .stRadio label { 
-        color: #f8fafc !important; 
+        color: #e0e7ff !important;   /* indigo-100 */ 
         font-weight: 500 !important;
         padding: 4px 0 !important;
+    }
+    section[data-testid="stSidebar"] button {
+        background: rgba(255,255,255,0.1) !important;
+        color: white !important;
+        border-color: rgba(255,255,255,0.15) !important;
+    }
+    section[data-testid="stSidebar"] button:hover {
+        background: rgba(255,255,255,0.2) !important;
     }
 
     /* ===== Misc ===== */

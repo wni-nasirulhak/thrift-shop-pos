@@ -6,6 +6,7 @@ import streamlit as st
 from datetime import datetime
 from src.config import SHEET_SALES
 from src.database.inventory import update_item_status
+from src.database.customers import update_customer_after_sale
 
 
 def record_sale(
@@ -17,6 +18,8 @@ def record_sale(
     final_price: float,
     payment_method: str,
     sold_by: str = "Admin",
+    customer_phone: str = "",
+    points_used: int = 0,
 ) -> bool:
     """บันทึกการขายลง Sales sheet และอัปเดตสถานะสินค้า."""
     try:
@@ -44,6 +47,12 @@ def record_sale(
 
         # อัปเดตสินค้าเป็น Sold
         update_item_status(sheet, barcode_id, "Sold")
+        
+        # ระบบ CRM (สะสมแต้ม)
+        if customer_phone:
+            points_earned = int(final_price // 100)
+            update_customer_after_sale(sheet, customer_phone, points_earned, points_used, final_price)
+
         return True
 
     except Exception as e:

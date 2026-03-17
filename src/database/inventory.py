@@ -73,7 +73,7 @@ def add_inventory_item(
             "",          # Consignment_Owner (future)
             "",          # Consignment_Rate (future)
             "",          # Notes
-            photo_b64,   # Photo (base64 thumbnail)
+            photo_b64,   # Column S = Photo (Cloudinary URL JSON or legacy base64)
         ]
         ws.append_row(new_row)
         return True
@@ -108,27 +108,35 @@ def update_inventory_item(
     material: str,
     cost: float,
     price: float,
+    photo_b64: str = "",
 ) -> bool:
-    """แก้ไขข้อมูลสินค้าที่มีอยู่แล้ว."""
+    """
+    แก้ไขข้อมูลสินค้าที่มีอยู่แล้ว — ใช้ batch_update เพื่อความเร็วและน่าเชื่อถือ.
+    Column layout (1-based):
+      A=Barcode_ID, B=Item_Name, C=Brand, D=Cat_ID, E=Cat_Name,
+      F=Size_Label, G=Condition, H=Color, I=Pattern, J=Material,
+      K=Cost, L=Price, M=Status, N=Created_At, O=Added_By,
+      P=Consignment_Owner, Q=Consignment_Rate, R=Notes, S=Photo
+    """
     try:
         ws = sheet.worksheet(SHEET_INVENTORY)
         records = ws.get_all_records()
 
         for idx, rec in enumerate(records, start=2):  # row 1 = header
             if str(rec.get("Barcode_ID", "")) == str(barcode_id):
-                updates = [
-                    (idx, 2,  item_name),
-                    (idx, 3,  brand),
-                    (idx, 6,  size_label),
-                    (idx, 7,  condition),
-                    (idx, 8,  color),
-                    (idx, 9,  pattern),
-                    (idx, 10, material),
-                    (idx, 11, float(cost)),
-                    (idx, 12, float(price)),
+                cell_updates = [
+                    {"range": f"B{idx}", "values": [[str(item_name)]]},
+                    {"range": f"C{idx}", "values": [[str(brand)]]},
+                    {"range": f"F{idx}", "values": [[str(size_label)]]},
+                    {"range": f"G{idx}", "values": [[str(condition)]]},
+                    {"range": f"H{idx}", "values": [[str(color)]]},
+                    {"range": f"I{idx}", "values": [[str(pattern)]]},
+                    {"range": f"J{idx}", "values": [[str(material)]]},
+                    {"range": f"K{idx}", "values": [[float(cost)]]},
+                    {"range": f"L{idx}", "values": [[float(price)]]},
+                    {"range": f"S{idx}", "values": [[str(photo_b64)]]},  # Photo
                 ]
-                for row, col, val in updates:
-                    ws.update_cell(row, col, val)
+                ws.batch_update(cell_updates)
                 return True
 
         st.warning(f"⚠️ ไม่พบสินค้า {barcode_id}")

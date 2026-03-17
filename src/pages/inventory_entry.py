@@ -3,13 +3,14 @@ pages/inventory_entry.py — Add new items to inventory.
 Steps: 1) Category → 2) Item info → 3) Measurements → 4) Photo → Save
 """
 
+import json
 import streamlit as st
 from src.config import SIZE_OPTIONS, CONDITION_OPTIONS, MEASUREMENT_FIELDS
 from src.database.catalog import get_active_categories, get_active_brand_names, get_brand_code
 from src.database.inventory import add_inventory_item
 from src.database.measurements import save_measurements
 from src.services.barcode import generate_barcode_id, generate_qr_bytes
-from src.services.images import compress_to_base64, decode_base64_to_bytes, estimate_size_kb
+from src.services.cloudinary_images import upload_image as cld_upload, get_thumbnail_url
 from src.components.ui_helpers import (
     render_section, render_divider, render_barcode_preview,
     render_qr_result, render_profit_hint,
@@ -75,17 +76,27 @@ def render(sheet, categories_df, brands_df):
     render_divider()
 
     # ===== Step 4: Photo =====
-    render_section("รูปสินค้า (ไม่บังคับ)", step=4)
-    photo_b64 = _render_photo_uploader()
+    render_section("รูปสินค้า (ไม่บังคับ) — อั้บโหลดได้สูงสุด 3 รูป", step=4)
+    uploaded_files = st.file_uploader(
+        "เลือกรูป",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        help="เลือกได้สูงสุด 3 รูป — จะบันทึกไยไป Cloudinary",
+        label_visibility="collapsed",
+    )
+    if uploaded_files:
+        uploaded_files = uploaded_files[:3]  # cap at 3
+        cols = st.columns(len(uploaded_files))
+        for i, f in enumerate(uploaded_files):
+            with cols[i]: st.image(f, caption=f"รูป {i+1}", use_container_width=True)
 
-    # ===== Save =====
     render_divider()
     if st.button("✅ บันทึกสินค้าเข้าสต็อก", use_container_width=True, type="primary"):
         _handle_save(
             sheet, brand_code, category_code, category_id, category_name,
             item_name, selected_brand, size_label, condition,
             color, pattern, material, cost, price,
-            measurements_data, photo_b64,
+            measurements_data, uploaded_files if uploaded_files else [],
         )
 
 
@@ -164,7 +175,7 @@ def _handle_save(
     sheet, brand_code, category_code, category_id, category_name,
     item_name, brand, size_label, condition,
     color, pattern, material, cost, price,
-    measurements_data, photo_b64,
+    measurements_data, photo_files: list,
 ):
     if not item_name:
         st.error("❌ กรุณากรอกชื่อสินค้า")
@@ -176,17 +187,32 @@ def _handle_save(
     barcode_id = generate_barcode_id(brand_code, category_code, sheet)
 
     with st.spinner("⏳ กำลังบันทึก..."):
+        # Upload photos to Cloudinary
+        photo_urls = []
+        if photo_files:
+            upload_prog = st.progress(0, text="อัปโหลดรูป...")
+            for idx, f in enumerate(photo_files):
+                url = cld_upload(f, barcode_id, photo_index=idx + 1)
+                if url:
+                    photo_urls.append(url)
+                upload_prog.progress((idx + 1) / len(photo_files))
+            upload_prog.empty()
+
+        # Store as JSON list in Photo column (first URL used for display in POS)
+        photo_value = json.dumps(photo_urls) if photo_urls else ""
+
         ok = add_inventory_item(
             sheet, barcode_id, item_name, brand,
             category_id, category_name, size_label, condition,
-            color, pattern, material, cost, price, photo_b64,
+            color, pattern, material, cost, price, photo_value,
         )
         if ok and measurements_data:
             save_measurements(sheet, category_id, barcode_id, measurements_data)
 
     if ok:
-        st.success("🎉 บันทึกสำเร็จ!")
+        st.success(f"🎉 บันทึกสำเร็จ! ({len(photo_urls)} รูบ)")
         st.balloons()
         qr_bytes = generate_qr_bytes(barcode_id)
         if qr_bytes:
             render_qr_result(barcode_id, qr_bytes, item_name, brand, category_name, price)
+
