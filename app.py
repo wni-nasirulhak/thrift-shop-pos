@@ -14,6 +14,7 @@ import src.pages.dashboard       as page_dashboard
 import src.pages.inventory_entry as page_inventory
 import src.pages.pos             as page_pos
 import src.pages.search          as page_search
+import src.pages.edit_product    as page_edit
 
 # ===== Page config (must be first Streamlit call) =====
 st.set_page_config(
@@ -42,6 +43,7 @@ MENU_ITEMS = [
     "📦 รับของเข้าสต็อก",
     "🛒 จุดขายสินค้า",
     "🔍 ค้นหาสินค้า",
+    "✏️ แก้ไขสินค้า",
 ]
 
 # Sidebar (desktop)
@@ -50,7 +52,7 @@ with st.sidebar:
         '<div style="color:white;font-size:1.1rem;font-weight:700;padding:10px 0;">📋 เมนูหลัก</div>',
         unsafe_allow_html=True,
     )
-    sidebar_menu = st.radio("", MENU_ITEMS, label_visibility="collapsed")
+    sidebar_menu = st.radio("เมนู", MENU_ITEMS, label_visibility="collapsed")
     st.markdown("---")
     if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True):
         st.cache_data.clear()
@@ -81,3 +83,6 @@ elif menu == "🛒 จุดขายสินค้า":
 
 elif menu == "🔍 ค้นหาสินค้า":
     page_search.render(sheet)
+
+elif menu == "✏️ แก้ไขสินค้า":
+    page_edit.render(sheet)

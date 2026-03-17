@@ -3,8 +3,9 @@ pages/search.py — Search inventory with text query and status filter.
 """
 
 import streamlit as st
-from src.database.inventory import load_all_inventory
-from src.components.ui_helpers import render_section, render_empty_state
+from src.database.inventory import load_all_inventory, find_item_by_barcode, update_inventory_item
+from src.components.ui_helpers import render_section, render_empty_state, render_divider
+from src.config import SIZE_OPTIONS, CONDITION_OPTIONS
 
 
 def render(sheet):

@@ -11,10 +11,6 @@ def render_header(title: str, subtitle: str = ""):
     <div class="app-header">
         <h1>{title}</h1>
         {"<p>" + subtitle + "</p>" if subtitle else ""}
-    </div>
-    """, unsafe_allow_html=True)
-
-
 def render_section(title: str, step: int | None = None):
     badge = f'<div class="step-badge">{step}</div>' if step else ""
     st.markdown(f"""

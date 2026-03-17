@@ -2,6 +2,9 @@
 chcp 65001 >nul
 title Thrift Shop POS
 
+:: ไปที่ project root (หนึ่งระดับเหนือ scripts\)
+cd /d "%~dp0.."
+
 echo.
 echo  ==========================================
 echo   Thrift Shop POS - Starting...
