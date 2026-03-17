@@ -1,6 +1,15 @@
-# Secrets และข้อมูลละเอียดอ่อน
+# Sensitive files (OAuth & Service Account)
+credentials.json
+token.pickle
+token.json
+*.pickle
+service-account*.json
+
+# Secrets example (keep the .example, not real values)
+secrets.toml
+
+# Streamlit secrets
 .streamlit/secrets.toml
-*.json
 
 # Python
 __pycache__/
@@ -11,23 +20,9 @@ __pycache__/
 env/
 venv/
 ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+.venv
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -37,3 +32,12 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Archive
+_archive/
+
+# Claude Code
+.claude/
